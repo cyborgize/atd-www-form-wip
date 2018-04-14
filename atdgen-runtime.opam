@@ -11,14 +11,14 @@ build: [
   ["jbuilder" "build" "-p" name "-j" jobs]
 ]
 
-build-test: [
+  build-test: [
   ["jbuilder" "runtest" "-p" name]
 ]
 
 depends: [
   "jbuilder" {build}
-  "menhir"
-  "easy-format"
+  "biniou" {>= "1.0.6"}
+  "yojson" {>= "1.2.1" }
 ]
 
 available: [ocaml-version >= "4.02.3"]
