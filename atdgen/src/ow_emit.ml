@@ -185,7 +185,7 @@ let get_left_to_string_name p name param =
   let args = List.map (fun s -> Tvar (dummy_loc, s)) param in
   get_writer_name ~name_f p (Name (dummy_loc, name, args, None, None))
 
-
+(*
 let write_with_adapter adapter writer =
   match adapter.Www_form.ocaml_adapter with
   | None -> writer
@@ -199,7 +199,7 @@ let write_with_adapter adapter writer =
         Block writer;
         Line ")";
       ]
-
+*)
 let unwrap_f_value ({ mapping; unwrapped; _} : field) (p : param) =
   if unwrapped then
     Ocaml.unwrap_option (p.deref mapping.f_value)
@@ -236,8 +236,11 @@ let rec make_writer ?type_constraint p (x : mapping) : Indent.t list =
         Annot ("fun", Line "fun state acc x ->");
         Block body
       ] in
+      (*
       let adapter = j.www_sum_adapter in
       write_with_adapter adapter standard_writer
+      *)
+      standard_writer
 
   | Record (_, a, Record o, Record j) ->
       let xval =
@@ -249,8 +252,11 @@ let rec make_writer ?type_constraint p (x : mapping) : Indent.t list =
         Annot ("fun", Line (sprintf "fun state acc %s ->" xval));
         Block (make_record_writer p a o);
       ] in
+      (*
       let adapter = j.www_record_adapter in
       write_with_adapter adapter standard_writer
+      *)
+      standard_writer
 
   | Tuple (_, a, Tuple, Tuple) ->
       let len = Array.length a in
