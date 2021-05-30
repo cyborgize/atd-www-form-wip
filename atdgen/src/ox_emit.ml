@@ -376,46 +376,6 @@ let default_value x deref =
 let include_intf (x : (Ocaml.Repr.t, _) Mapping.def) =
   x.def_name <> "" && x.def_name.[0] <> '_' && x.def_value <> None
 
-type field =
-  { mapping : (Ocaml.Repr.t, Json.json_repr) Mapping.field_mapping
-  ; ocaml_fname : string
-  ; json_fname : string
-  ; ocaml_default : string option
-  ; optional : bool
-  ; unwrapped : bool
-  }
-
-let get_fields deref a =
-  List.map (fun x ->
-    let ocamlf, jsonf =
-      match x.f_arepr, x.f_brepr with
-      | Ocaml.Repr.Field o, Json.Field j -> o, j
-      | _ -> assert false
-    in
-    let ocaml_fname = ocamlf.Ocaml.ocaml_fname in
-    let ocaml_default =
-      match x.f_kind, ocamlf.Ocaml.ocaml_default with
-      | With_default, None ->
-          (match Ocaml.get_implicit_ocaml_default (deref x.f_value) with
-           | None -> Error.error x.f_loc "Missing default field value"
-           | Some d -> Some d
-          )
-      | With_default, Some d -> Some d
-      | Optional, _ -> Some "None"
-      | Required, _ -> None
-    in
-    let json_fname = jsonf.Json.json_fname in
-    let optional = not (Atd.Ast.is_required x.f_kind) in
-    let unwrapped = jsonf.Json.json_unwrapped in
-    { mapping = x
-    ; ocaml_fname
-    ; ocaml_default
-    ; json_fname
-    ; optional
-    ; unwrapped
-    }
-  ) (Array.to_list a)
-
 let is_string deref x =
   (*
     Calling 'unwrap' allows us to ignore 'wrap' constructors
@@ -426,15 +386,6 @@ let is_string deref x =
   match Mapping.unwrap deref x with
   | String _ -> true
   | _ -> false (* or maybe we just don't know *)
-
-let get_assoc_type deref loc x =
-  match deref x with
-  | Tuple (_, [| k; v |], Ocaml.Repr.Tuple, Json.Tuple) ->
-      if not (is_string deref k.cel_value) then
-        Error.error loc "Due to <json repr=\"object\"> keys must be strings";
-      (k.cel_value, v.cel_value)
-  | _ ->
-      Error.error loc "Expected due to <json repr=\"object\">: (string * _) list"
 
 (* Glue *)
 let make_mli

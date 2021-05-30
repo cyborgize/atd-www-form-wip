@@ -81,27 +81,7 @@ val default_value
 
 val include_intf : 'a def -> bool
 
-type field =
-  { mapping : (Ocaml.Repr.t, Json.json_repr) Mapping.field_mapping
-  ; ocaml_fname : string
-  ; json_fname : string
-  ; ocaml_default : string option
-  ; optional : bool
-  ; unwrapped : bool
-  }
-
-val get_fields
-  : (Json.json_repr expr -> 'a expr)
-  -> (Ocaml.Repr.t, Json.json_repr) Mapping.field_mapping array
-  -> field list
-
 val is_string : ('a expr -> 'a expr) -> 'a expr -> bool
-
-val get_assoc_type : (Json.json_repr expr -> Json.json_repr expr) ->
-    Mapping.loc ->
-      Json.json_repr expr ->
-        Json.json_repr expr *
-          Json.json_repr expr
 
 (* Glue *)
 type 't make_ocaml_intf =
