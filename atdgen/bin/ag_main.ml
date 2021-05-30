@@ -29,18 +29,9 @@ to incompatible values."
         var := Some x
 
 type mode =
-  | T (* -t (type defs and create_* functions) *)
-  | B (* -b (biniou serialization) *)
-  | J (* -j (json serialization) *)
   | W (* -w (www-form serialization) *)
-  | V (* -v (validators) *)
-  | Dep (* -dep (print all file dependencies produced by -t -b -j -v) *)
-  | List (* -list (list all files produced by -t -b -j -v) *)
-
-  | Biniou (* -biniou (deprecated) *)
-  | Json (* -json (deprecated) *)
-  | Validate (* -validate (deprecated) *)
-  | Bucklescript (* -bs (bucklescript) *)
+  | Dep (* -dep (print all file dependencies produced by -t -w) *)
+  | List (* -list (list all files produced by -t -w) *)
 
 let parse_ocaml_version () =
   let re = Re.Str.regexp "^\\([0-9]+\\)\\.\\([0-9]+\\)" in
@@ -62,7 +53,6 @@ let main () =
   let all_rec = ref false in
   let out_prefix = ref None in
   let mode = ref (None : mode option) in
-  let std_json = ref false in
   let j_preprocess_input = ref None in
   let j_defaults = ref false in
   let unknown_field_handler = ref None in
@@ -88,31 +78,6 @@ let main () =
          Insert 'with GEN1, GEN2, ...' after OCaml type definitions for the
          ppx_deriving preprocessor
     ";
-    "-t", Arg.Unit (fun () ->
-                      set_once "output type" mode T;
-                      set_once "no function definitions" with_fundefs false),
-    "
-          Produce files example_t.mli and example_t.ml
-          containing OCaml type definitions derived from example.atd.";
-
-    "-b", Arg.Unit (fun () -> set_once "output type" mode B),
-    "
-          Produce files example_b.mli and example_b.ml
-          containing OCaml serializers and deserializers for the Biniou
-          data format from the specifications in example.atd.";
-
-    "-j", Arg.Unit (fun () -> set_once "output type" mode J),
-    "
-          Produce files example_j.mli and example_j.ml
-          containing OCaml serializers and deserializers for the JSON
-          data format from the specifications in example.atd.";
-
-    "-bs", Arg.Unit (fun () -> set_once "output type" mode Bucklescript),
-    "
-          Produce files example_bs.mli and example_bs.ml
-          containing OCaml serializers and deserializers for the JSON
-          data format from the specifications in example.atd using
-          bucklescript's json api.";
 
     "-w", Arg.Unit (fun () -> set_once "output type" mode W),
     "
@@ -121,21 +86,15 @@ let main () =
           data format from the specifications in example.atd.";
 
 
-    "-v", Arg.Unit (fun () -> set_once "output type" mode V),
-    "
-          Produce files example_v.mli and example_v.ml
-          containing OCaml functions for creating records and
-          validators from the specifications in example.atd.";
-
     "-dep", Arg.Unit (fun () -> set_once "output type" mode Dep),
     "
           Output Make-compatible dependencies for all possible
-          products of atdgen -t, -b, -j and -v, and exit.";
+          products of atdgen -t, and -w, and exit.";
 
     "-list", Arg.Unit (fun () -> set_once "output type" mode List),
     "
           Output a space-separated list of all possible products of
-          atdgen -t, -b, -j and -v, and exit.";
+          atdgen -t, and -w, and exit.";
 
     "-o", Arg.String (fun s ->
                         let out =
@@ -150,37 +109,6 @@ let main () =
           `-' designates stdout and produces code of the form
             struct ... end : sig ... end";
 
-    "-biniou",
-    Arg.Unit (fun () ->
-                set_once "output type" mode Biniou),
-    "
-          [deprecated in favor of -t and -b]
-          Produce serializers and deserializers for Biniou
-          including OCaml type definitions (default).";
-
-    "-json",
-    Arg.Unit (fun () ->
-                set_once "output type" mode Json),
-    "
-          [deprecated in favor of -t and -j]
-          Produce serializers and deserializers for JSON
-          including OCaml type definitions.";
-
-    "-j-std",
-    Arg.Unit (fun () ->
-                std_json := true),
-    "
-          Convert tuples and variants into standard JSON and
-          refuse to print NaN and infinities (implying -json mode
-          unless another mode is specified).";
-
-    "-std-json",
-    Arg.Unit (fun () ->
-                std_json := true),
-    "
-          [deprecated in favor of -j-std]
-          Same as -j-std.";
-
     "-j-pp",
     Arg.String (fun s -> set_once "-j-pp" j_preprocess_input s),
     "<func>
@@ -194,39 +122,6 @@ let main () =
     "
           Output JSON record fields even if their value is known
           to be the default.";
-
-    "-j-strict-fields",
-    Arg.Unit (
-      fun () ->
-        set_once "unknown field handler" unknown_field_handler
-          "!Atdgen_runtime.Util.Json.unknown_field_handler"
-    ),
-    "
-          Call !Atdgen_runtime.Util.Json.unknown_field_handler for every unknown JSON field
-          found in the input instead of simply skipping them.
-          The initial behavior is to raise an exception.";
-
-    "-j-custom-fields",
-    Arg.String (
-      fun s ->
-        set_once "unknown field handler" unknown_field_handler s
-    ),
-    "FUNCTION
-          Call the given function of type (string -> unit)
-          for every unknown JSON field found in the input
-          instead of simply skipping them.
-          See also -j-strict-fields.";
-
-    "-validate",
-    Arg.Unit (fun () ->
-                set_once "output type" mode Validate),
-    "
-          [deprecated in favor of -t and -v]
-          Produce data validators from <ocaml validator=\"x\"> annotations
-          where x is a user-written validator to be applied on a specific
-          node.
-          This is typically used in conjunction with -extend because
-          user-written validators depend on the type definitions.";
 
     "-extend", Arg.String (fun s -> type_aliases := Some s),
     "MODULE
@@ -271,23 +166,14 @@ let main () =
   in
   let msg = sprintf "\
 Generate OCaml code offering:
-  * OCaml type definitions translated from ATD file (-t)
-  * serializers and deserializers for Biniou (-b)
-  * serializers and deserializers for JSON (-j)
   * serializers and deserializers for www-form (-w)
-  * record-creating functions supporting default fields (-v)
-  * user-specified data validators (-v)
 
-Recommended usage: %s (-t|-b|-j|-w|-v|-dep|-list|-bs) example.atd" Sys.argv.(0) in
+Recommended usage: %s (-w|-dep|-list) example.atd" Sys.argv.(0) in
   Arg.parse options (fun file -> files := file :: !files) msg;
-
-  if (!std_json
-      || !unknown_field_handler <> None) && !mode = None then
-    set_once "output mode" mode Json;
 
   let mode =
     match !mode with
-        None -> Biniou
+        None -> W
       | Some x -> x
   in
 
@@ -296,20 +182,13 @@ Recommended usage: %s (-t|-b|-j|-w|-v|-dep|-list|-bs) example.atd" Sys.argv.(0) 
         Some x -> x
       | None ->
           match mode with
-              T | B | J | W | Bucklescript -> false
-            | V -> true
-            | Biniou | Json | Validate -> true
+              W -> false
             | Dep | List -> true (* don't care *)
   in
 
   let force_defaults =
     match mode with
-        J | Json -> !j_defaults
-      | T
-      | B | Biniou
-      | W
-      | V | Validate
-      | Bucklescript
+        W -> !j_defaults
       | Dep | List -> false (* don't care *)
   in
 
@@ -339,37 +218,26 @@ Recommended usage: %s (-t|-b|-j|-w|-v|-dep|-list|-bs) example.atd" Sys.argv.(0) 
       | Files base ->
           Some base, Ox_emit.Files
             (match mode with
-                 T -> base ^ "_t"
-               | B -> base ^ "_b"
-               | J -> base ^ "_j"
-               | W -> base ^ "_w"
-               | V -> base ^ "_v"
-               | Bucklescript -> base ^ "_bs"
+                 W -> base ^ "_w"
                | Dep
-               | List
-               | Biniou
-               | Validate
-               | Json -> base
+               | List -> base
             )
   in
   let type_aliases =
     match base_prefix with
         None ->
           (match mode with
-               B | J | W | V | Bucklescript -> Some "T"
-           | Biniou | Validate
-           | T | Dep | List
-           | Json -> None
+               W -> Some "T"
+             | Dep | List -> None
           )
       | Some base ->
           match !type_aliases with
               Some _ as x -> x
             | None ->
                 (match mode with
-                     B | J | W | V | Bucklescript ->
+                     W ->
                        Some (String.capitalize_ascii (Filename.basename base) ^ "_t")
-                 | T | Json | Dep | List | Validate
-                   | Biniou -> None
+                   | Dep | List -> None
           )
   in
   let get_base_prefix () =
@@ -380,29 +248,15 @@ Recommended usage: %s (-t|-b|-j|-w|-v|-dep|-list|-bs) example.atd" Sys.argv.(0) 
   match mode with
       Dep -> print_deps (get_base_prefix ())
     | List -> print_file_list (get_base_prefix ())
-    | Bucklescript
-    | T | B | J | W | V | Biniou | Json | Validate ->
+    | W ->
 
         let opens = List.rev !opens in
         let make_ocaml_files =
           match mode with
-              T ->
-                Ob_emit.make_ocaml_files
-            | B | Biniou ->
-                Ob_emit.make_ocaml_files
-            | J | Json ->
-                Oj_emit.make_ocaml_files
-                  ~std: !std_json
-                  ~unknown_field_handler: !unknown_field_handler
-                  ~preprocess_input: !j_preprocess_input
-            | W ->
+              W ->
                 Ow_emit.make_ocaml_files
                   ~unknown_field_handler: !unknown_field_handler
                   ~preprocess_input: !j_preprocess_input
-            | V | Validate ->
-                Ov_emit.make_ocaml_files
-            | Bucklescript ->
-                Obuckle_emit.make_ocaml_files
             | Dep | List -> assert false
         in
         let with_default default = function None -> default | Some x -> x in
